@@ -3,7 +3,8 @@ package handler
 import (
 	"fmt"
 	"html/template"
-	"net/http"
+
+	"github.com/valyala/fasthttp"
 )
 
 type playgroundData struct {
@@ -14,23 +15,24 @@ type playgroundData struct {
 }
 
 // renderPlayground renders the Playground GUI
-func renderPlayground(w http.ResponseWriter, r *http.Request) {
+func renderPlayground(reqCtx *fasthttp.RequestCtx) {
 	t := template.New("Playground")
 	t, err := t.Parse(graphcoolPlaygroundTemplate)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return
 	}
 
 	d := playgroundData{
 		PlaygroundVersion:    graphcoolPlaygroundVersion,
-		Endpoint:             r.URL.Path,
-		SubscriptionEndpoint: fmt.Sprintf("ws://%v/subscriptions", r.Host),
+		Endpoint:             string(reqCtx.Request.URI().Path()),
+		SubscriptionEndpoint: fmt.Sprintf("ws://%s/subscriptions", reqCtx.Request.Header.Host()),
 		SetTitle:             true,
 	}
-	err = t.ExecuteTemplate(w, "index", d)
+	err = t.ExecuteTemplate(reqCtx, "index", d)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
+		return
 	}
 
 	return

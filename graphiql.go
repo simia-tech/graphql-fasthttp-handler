@@ -3,9 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"html/template"
-	"net/http"
 
 	"github.com/graphql-go/graphql"
+	"github.com/valyala/fasthttp"
 )
 
 // graphiqlData is the page data structure of the rendered GraphiQL page
@@ -18,18 +18,18 @@ type graphiqlData struct {
 }
 
 // renderGraphiQL renders the GraphiQL GUI
-func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
+func renderGraphiQL(reqCtx *fasthttp.RequestCtx, params graphql.Params) {
 	t := template.New("GraphiQL")
 	t, err := t.Parse(graphiqlTemplate)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return
 	}
 
 	// Create variables string
 	vars, err := json.MarshalIndent(params.VariableValues, "", "  ")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return
 	}
 	varsString := string(vars)
@@ -44,7 +44,7 @@ func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
 	} else {
 		result, err := json.MarshalIndent(graphql.Do(params), "", "  ")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
 		}
 		resString = string(result)
@@ -57,9 +57,10 @@ func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
 		VariablesString: varsString,
 		OperationName:   params.OperationName,
 	}
-	err = t.ExecuteTemplate(w, "index", d)
+	err = t.ExecuteTemplate(reqCtx, "index", d)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		reqCtx.Error(err.Error(), fasthttp.StatusInternalServerError)
+		return
 	}
 
 	return

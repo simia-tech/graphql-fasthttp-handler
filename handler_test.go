@@ -1,46 +1,23 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
-
-	"context"
 
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/gqlerrors"
 	"github.com/graphql-go/graphql/language/location"
 	"github.com/graphql-go/graphql/testutil"
-	"github.com/graphql-go/handler"
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttputil"
+
+	handler "github.com/simia-tech/graphql-fasthttp-handler"
 )
-
-func decodeResponse(t *testing.T, recorder *httptest.ResponseRecorder) *graphql.Result {
-	// clone request body reader so that we can have a nicer error message
-	bodyString := ""
-	var target graphql.Result
-	if b, err := ioutil.ReadAll(recorder.Body); err == nil {
-		bodyString = string(b)
-	}
-	readerClone := strings.NewReader(bodyString)
-
-	decoder := json.NewDecoder(readerClone)
-	err := decoder.Decode(&target)
-	if err != nil {
-		t.Fatalf("DecodeResponseToType(): %v \n%v", err.Error(), bodyString)
-	}
-	return &target
-}
-func executeTest(t *testing.T, h *handler.Handler, req *http.Request) (*graphql.Result, *httptest.ResponseRecorder) {
-	resp := httptest.NewRecorder()
-	h.ServeHTTP(resp, req)
-	result := decodeResponse(t, resp)
-	return result, resp
-}
 
 func TestContextPropagated(t *testing.T) {
 	myNameQuery := graphql.NewObject(graphql.ObjectConfig{
@@ -63,24 +40,32 @@ func TestContextPropagated(t *testing.T) {
 	}
 
 	expected := &graphql.Result{
-		Data: map[string]interface{}{
-			"name": "context-data",
-		},
+		Data: map[string]interface{}{"name": nil},
 	}
 	queryString := `query={name}`
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/graphql?%v", queryString), nil)
+
+	req := fasthttp.AcquireRequest()
+	req.Header.SetHost("localhost")
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.URI().SetPath("/graphql")
+	req.URI().SetQueryString(queryString)
+	defer fasthttp.ReleaseRequest(req)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	h := handler.New(&handler.Config{
 		Schema: &myNameSchema,
 		Pretty: true,
 	})
 
-	ctx := context.WithValue(context.Background(), "name", "context-data")
-	resp := httptest.NewRecorder()
-	h.ContextHandler(ctx, resp, req)
+	if err := serve(h.ServeHTTP, req, resp); err != nil {
+		t.Fatal(err)
+	}
+
 	result := decodeResponse(t, resp)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected server response %v", resp.Code)
+	if code := resp.StatusCode(); code != fasthttp.StatusOK {
+		t.Fatalf("unexpected server response %v", code)
 	}
 	if !reflect.DeepEqual(result, expected) {
 		t.Fatalf("wrong result, graphql result diff: %v", testutil.Diff(expected, result))
@@ -96,7 +81,16 @@ func TestHandler_BasicQuery_Pretty(t *testing.T) {
 		},
 	}
 	queryString := `query=query HeroNameQuery { hero { name } }&operationName=HeroNameQuery`
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/graphql?%v", queryString), nil)
+
+	req := fasthttp.AcquireRequest()
+	req.Header.SetHost("localhost")
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.URI().SetPath("/graphql")
+	req.URI().SetQueryString(queryString)
+	defer fasthttp.ReleaseRequest(req)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	callbackCalled := false
 	h := handler.New(&handler.Config{
@@ -113,9 +107,14 @@ func TestHandler_BasicQuery_Pretty(t *testing.T) {
 			}
 		},
 	})
-	result, resp := executeTest(t, h, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected server response %v", resp.Code)
+
+	if err := serve(h.ServeHTTP, req, resp); err != nil {
+		t.Fatal(err)
+	}
+
+	result := decodeResponse(t, resp)
+	if code := resp.StatusCode(); code != http.StatusOK {
+		t.Fatalf("unexpected server response %v", code)
 	}
 	if !reflect.DeepEqual(result, expected) {
 		t.Fatalf("wrong result, graphql result diff: %v", testutil.Diff(expected, result))
@@ -134,15 +133,29 @@ func TestHandler_BasicQuery_Ugly(t *testing.T) {
 		},
 	}
 	queryString := `query=query HeroNameQuery { hero { name } }`
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/graphql?%v", queryString), nil)
+
+	req := fasthttp.AcquireRequest()
+	req.Header.SetHost("localhost")
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.URI().SetPath("/graphql")
+	req.URI().SetQueryString(queryString)
+	defer fasthttp.ReleaseRequest(req)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	h := handler.New(&handler.Config{
 		Schema: &testutil.StarWarsSchema,
 		Pretty: false,
 	})
-	result, resp := executeTest(t, h, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected server response %v", resp.Code)
+
+	if err := serve(h.ServeHTTP, req, resp); err != nil {
+		t.Fatal(err)
+	}
+
+	result := decodeResponse(t, resp)
+	if code := resp.StatusCode(); code != http.StatusOK {
+		t.Fatalf("unexpected server response %v", code)
 	}
 	if !reflect.DeepEqual(result, expected) {
 		t.Fatalf("wrong result, graphql result diff: %v", testutil.Diff(expected, result))
@@ -195,18 +208,32 @@ func TestHandler_BasicQuery_WithRootObjFn(t *testing.T) {
 		},
 	}
 	queryString := `query={name}`
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/graphql?%v", queryString), nil)
+
+	req := fasthttp.AcquireRequest()
+	req.Header.SetHost("localhost")
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.URI().SetPath("/graphql")
+	req.URI().SetQueryString(queryString)
+	defer fasthttp.ReleaseRequest(req)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	h := handler.New(&handler.Config{
 		Schema: &myNameSchema,
 		Pretty: true,
-		RootObjectFn: func(ctx context.Context, r *http.Request) map[string]interface{} {
+		RootObjectFn: func(reqCtx *fasthttp.RequestCtx) map[string]interface{} {
 			return map[string]interface{}{"rootValue": "foo"}
 		},
 	})
-	result, resp := executeTest(t, h, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected server response %v", resp.Code)
+
+	if err := serve(h.ServeHTTP, req, resp); err != nil {
+		t.Fatal(err)
+	}
+
+	result := decodeResponse(t, resp)
+	if code := resp.StatusCode(); code != http.StatusOK {
+		t.Fatalf("unexpected server response %v", code)
 	}
 	if !reflect.DeepEqual(result, expected) {
 		t.Fatalf("wrong result, graphql result diff: %v", testutil.Diff(expected, result))
@@ -261,7 +288,16 @@ func TestHandler_BasicQuery_WithFormatErrorFn(t *testing.T) {
 	}
 
 	queryString := `query={name}`
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/graphql?%v", queryString), nil)
+
+	req := fasthttp.AcquireRequest()
+	req.Header.SetHost("localhost")
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.URI().SetPath("/graphql")
+	req.URI().SetQueryString(queryString)
+	defer fasthttp.ReleaseRequest(req)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	formatErrorFnCalled := false
 	h := handler.New(&handler.Config{
@@ -279,9 +315,14 @@ func TestHandler_BasicQuery_WithFormatErrorFn(t *testing.T) {
 			return formatted
 		},
 	})
-	result, resp := executeTest(t, h, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected server response %v", resp.Code)
+
+	if err := serve(h.ServeHTTP, req, resp); err != nil {
+		t.Fatal(err)
+	}
+
+	result := decodeResponse(t, resp)
+	if code := resp.StatusCode(); code != http.StatusOK {
+		t.Fatalf("unexpected server response %v", code)
 	}
 	if !formatErrorFnCalled {
 		t.Fatalf("FormatErrorFn was not called when it should have been")
@@ -289,4 +330,32 @@ func TestHandler_BasicQuery_WithFormatErrorFn(t *testing.T) {
 	if !reflect.DeepEqual(result, expected) {
 		t.Fatalf("wrong result, graphql result diff: %v", testutil.Diff(expected, result))
 	}
+}
+
+func decodeResponse(t *testing.T, response *fasthttp.Response) *graphql.Result {
+	var target graphql.Result
+	if err := json.Unmarshal(response.Body(), &target); err != nil {
+		t.Fatalf("DecodeResponseToType(): %v \n%s", err.Error(), response.Body())
+	}
+	return &target
+}
+
+func serve(handler fasthttp.RequestHandler, req *fasthttp.Request, res *fasthttp.Response) error {
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	go func() {
+		err := fasthttp.Serve(ln, handler)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	client := fasthttp.Client{
+		Dial: func(addr string) (net.Conn, error) {
+			return ln.Dial()
+		},
+	}
+
+	return client.Do(req, res)
 }

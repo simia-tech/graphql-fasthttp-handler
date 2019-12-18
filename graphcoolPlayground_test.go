@@ -2,12 +2,12 @@ package handler_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/graphql-go/graphql/testutil"
-	"github.com/graphql-go/handler"
+	handler "github.com/simia-tech/graphql-fasthttp-handler"
+	"github.com/valyala/fasthttp"
 )
 
 func TestRenderPlayground(t *testing.T) {
@@ -54,12 +54,15 @@ func TestRenderPlayground(t *testing.T) {
 
 	for tcID, tc := range cases {
 		t.Run(tcID, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, tc.url, nil)
-			if err != nil {
-				t.Error(err)
-			}
-
+			req := fasthttp.AcquireRequest()
+			req.Header.SetHost("localhost")
+			req.Header.SetMethod(fasthttp.MethodGet)
 			req.Header.Set("Accept", tc.accept)
+			req.URI().SetPath(tc.url)
+			defer fasthttp.ReleaseRequest(req)
+
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseResponse(resp)
 
 			h := handler.New(&handler.Config{
 				Schema:     &testutil.StarWarsSchema,
@@ -67,23 +70,19 @@ func TestRenderPlayground(t *testing.T) {
 				Playground: tc.playgroundEnabled,
 			})
 
-			rr := httptest.NewRecorder()
+			if err := serve(h.ServeHTTP, req, resp); err != nil {
+				t.Fatal(err)
+			}
 
-			h.ServeHTTP(rr, req)
-			resp := rr.Result()
-
-			statusCode := resp.StatusCode
-			if statusCode != tc.expectedStatusCode {
+			if statusCode := resp.StatusCode(); statusCode != tc.expectedStatusCode {
 				t.Fatalf("%s: wrong status code, expected %v, got %v", tcID, tc.expectedStatusCode, statusCode)
 			}
 
-			contentType := resp.Header.Get("Content-Type")
-			if contentType != tc.expectedContentType {
+			if contentType := string(resp.Header.ContentType()); contentType != tc.expectedContentType {
 				t.Fatalf("%s: wrong content type, expected %s, got %s", tcID, tc.expectedContentType, contentType)
 			}
 
-			body := rr.Body.String()
-			if !strings.Contains(body, tc.expectedBodyContains) {
+			if body := string(resp.Body()); !strings.Contains(body, tc.expectedBodyContains) {
 				t.Fatalf("%s: wrong body, expected %s to contain %s", tcID, body, tc.expectedBodyContains)
 			}
 		})
