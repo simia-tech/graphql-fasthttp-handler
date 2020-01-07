@@ -50,6 +50,8 @@ func renderGraphiQL(reqCtx *fasthttp.RequestCtx, params graphql.Params) {
 		resString = string(result)
 	}
 
+	reqCtx.Response.Header.SetContentType("text/html; charset=utf-8")
+
 	d := graphiqlData{
 		GraphiqlVersion: graphiqlVersion,
 		QueryString:     params.RequestString,

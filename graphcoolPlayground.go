@@ -23,6 +23,8 @@ func renderPlayground(reqCtx *fasthttp.RequestCtx) {
 		return
 	}
 
+	reqCtx.Response.Header.SetContentType("text/html; charset=utf-8")
+
 	d := playgroundData{
 		PlaygroundVersion:    graphcoolPlaygroundVersion,
 		Endpoint:             string(reqCtx.Request.URI().Path()),
