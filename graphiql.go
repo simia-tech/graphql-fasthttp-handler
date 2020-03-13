@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"html/template"
+	"strings"
 
 	"github.com/graphql-go/graphql"
 	"github.com/valyala/fasthttp"
@@ -15,6 +16,7 @@ type graphiqlData struct {
 	VariablesString string
 	OperationName   string
 	ResultString    string
+	Path            string
 }
 
 // renderGraphiQL renders the GraphiQL GUI
@@ -58,6 +60,7 @@ func renderGraphiQL(reqCtx *fasthttp.RequestCtx, params graphql.Params) {
 		ResultString:    resString,
 		VariablesString: varsString,
 		OperationName:   params.OperationName,
+		Path:            strings.TrimSuffix(string(reqCtx.Path()), "/"),
 	}
 	err = t.ExecuteTemplate(reqCtx, "index", d)
 	if err != nil {
@@ -100,12 +103,12 @@ add "&raw" to the end of the URL within a browser.
       height: 100vh;
     }
   </style>
-  <link href="//cdn.jsdelivr.net/npm/graphiql@{{ .GraphiqlVersion }}/graphiql.css" rel="stylesheet" />
-  <script src="//cdn.jsdelivr.net/es6-promise/4.0.5/es6-promise.auto.min.js"></script>
-  <script src="//cdn.jsdelivr.net/fetch/0.9.0/fetch.min.js"></script>
-  <script src="//cdn.jsdelivr.net/react/15.4.2/react.min.js"></script>
-  <script src="//cdn.jsdelivr.net/react/15.4.2/react-dom.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/graphiql@{{ .GraphiqlVersion }}/graphiql.min.js"></script>
+  <link href="{{ .Path }}/static/graphiql/graphiql.css" rel="stylesheet" />
+  <script src="{{ .Path }}/static/graphiql/es6-promise.auto.min.js"></script>
+  <script src="{{ .Path }}/static/graphiql/fetch.min.js"></script>
+  <script src="{{ .Path }}/static/graphiql/react.min.js"></script>
+  <script src="{{ .Path }}/static/graphiql/react-dom.min.js"></script>
+  <script src="{{ .Path }}/static/graphiql/graphiql.min.js"></script>
 </head>
 <body>
   <div id="graphiql">Loading...</div>

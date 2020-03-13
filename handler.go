@@ -1,9 +1,17 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"log"
+	"mime"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/gobuffalo/packr/v2"
 	"github.com/graphql-go/graphql"
 	"github.com/valyala/fasthttp"
 
@@ -155,6 +163,11 @@ func (h *Handler) ServeHTTP(reqCtx *fasthttp.RequestCtx) {
 		}
 	}
 
+	if bytes.Equal(reqCtx.Request.Header.Method(), []byte(fasthttp.MethodGet)) && bytes.Contains(reqCtx.URI().Path(), []byte("/static/")) {
+		serveStatic(reqCtx)
+		return
+	}
+
 	// use proper JSON Header
 	reqCtx.Response.Header.SetContentType("application/json; charset=utf-8")
 
@@ -214,4 +227,29 @@ func New(p *Config) *Handler {
 		resultCallbackFn: p.ResultCallbackFn,
 		formatErrorFn:    p.FormatErrorFn,
 	}
+}
+
+var staticBox = packr.New("graphql-web", "./static")
+
+func serveStatic(ctx *fasthttp.RequestCtx) {
+	path := string(ctx.Path())
+	path = path[strings.Index(path, "/static/")+8:]
+
+	content, err := staticBox.Find(path)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Printf("%s - 404 bot found", path)
+		ctx.Response.Header.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("err %v", err)
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(path))
+	if contentType == "" {
+		contentType = http.DetectContentType(content[:1024])
+	}
+	ctx.Response.Header.SetContentType(contentType)
+
+	ctx.Response.SetBody(content)
 }
