@@ -32,7 +32,7 @@ func renderPlayground(reqCtx *fasthttp.RequestCtx) {
 		Endpoint:             string(reqCtx.Request.URI().Path()),
 		SubscriptionEndpoint: fmt.Sprintf("ws://%s/subscriptions", reqCtx.Request.Header.Host()),
 		SetTitle:             true,
-		Path:                 strings.TrimPrefix(string(reqCtx.Path()), "/"),
+		Path:                 strings.TrimSuffix(string(reqCtx.Path()), "/"),
 	}
 	err = t.ExecuteTemplate(reqCtx, "index", d)
 	if err != nil {
@@ -67,7 +67,7 @@ add "&raw" to the end of the URL within a browser.
   <script src="{{ .Path }}/static/playground/middleware.js"></script>
 </head>
 
-<body>
+<body>could not find vault of user id %d
   <div id="root">
     <style>
       body {
