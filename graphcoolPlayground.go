@@ -67,7 +67,7 @@ add "&raw" to the end of the URL within a browser.
   <script src="{{ .Path }}/static/playground/middleware.js"></script>
 </head>
 
-<body>could not find vault of user id %d
+<body>
   <div id="root">
     <style>
       body {
