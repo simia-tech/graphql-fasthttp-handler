@@ -26,6 +26,12 @@ const (
 	ContentTypeFormURLEncoded = "application/x-www-form-urlencoded"
 )
 
+var (
+	Endpoint             string = ""
+	SubscriptionEndpoint string = ""
+	BasePath             string = ""
+)
+
 type ResultCallbackFn func(ctx context.Context, params *graphql.Params, result *graphql.Result, responseBody []byte)
 
 type Handler struct {

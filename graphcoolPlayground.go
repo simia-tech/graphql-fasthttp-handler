@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"fmt"
 	"html/template"
-	"strings"
 
 	"github.com/valyala/fasthttp"
 )
@@ -29,10 +27,10 @@ func renderPlayground(reqCtx *fasthttp.RequestCtx) {
 
 	d := playgroundData{
 		PlaygroundVersion:    graphcoolPlaygroundVersion,
-		Endpoint:             string(reqCtx.Request.URI().Path()),
-		SubscriptionEndpoint: fmt.Sprintf("ws://%s/subscriptions", reqCtx.Request.Header.Host()),
+		Endpoint:             Endpoint,
+		SubscriptionEndpoint: SubscriptionEndpoint,
 		SetTitle:             true,
-		Path:                 strings.TrimSuffix(string(reqCtx.Path()), "/"),
+		Path:                 BasePath,
 	}
 	err = t.ExecuteTemplate(reqCtx, "index", d)
 	if err != nil {
@@ -62,9 +60,9 @@ add "&raw" to the end of the URL within a browser.
   <meta charset=utf-8/>
   <meta name="viewport" content="user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui">
   <title>GraphQL Playground</title>
-  <link rel="stylesheet" href="static/playground/index.css" />
-  <link rel="shortcut icon" href="static/playground/favicon.png" />
-  <script src="static/playground/middleware.js"></script>
+  <link rel="stylesheet" href="{{ .Path }}static/playground/index.css" />
+  <link rel="shortcut icon" href="{{ .Path }}static/playground/favicon.png" />
+  <script src="{{ .Path }}static/playground/middleware.js"></script>
 </head>
 
 <body>
@@ -96,7 +94,7 @@ add "&raw" to the end of the URL within a browser.
         font-weight: 400;
       }
     </style>
-    <img src='{{ .Path }}/static/playground/logo.png' alt=''>
+    <img src='{{ .Path }}static/playground/logo.png' alt=''>
     <div class="loading"> Loading
       <span class="title">GraphQL Playground</span>
     </div>
