@@ -103,12 +103,12 @@ add "&raw" to the end of the URL within a browser.
       height: 100vh;
     }
   </style>
-  <link href="{{ .Path }}/static/graphiql/graphiql.css" rel="stylesheet" />
-  <script src="{{ .Path }}/static/graphiql/es6-promise.auto.min.js"></script>
-  <script src="{{ .Path }}/static/graphiql/fetch.min.js"></script>
-  <script src="{{ .Path }}/static/graphiql/react.min.js"></script>
-  <script src="{{ .Path }}/static/graphiql/react-dom.min.js"></script>
-  <script src="{{ .Path }}/static/graphiql/graphiql.min.js"></script>
+  <link href="static/graphiql/graphiql.css" rel="stylesheet" />
+  <script src="static/graphiql/es6-promise.auto.min.js"></script>
+  <script src="static/graphiql/fetch.min.js"></script>
+  <script src="static/graphiql/react.min.js"></script>
+  <script src="static/graphiql/react-dom.min.js"></script>
+  <script src="static/graphiql/graphiql.min.js"></script>
 </head>
 <body>
   <div id="graphiql">Loading...</div>
